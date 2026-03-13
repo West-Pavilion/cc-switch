@@ -300,29 +300,51 @@ jobs:
           echo "Collected signatures (if any alongside artifacts):"
           ls -la release-assets/*.sig || echo "No signatures found"
 
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: CC Switch ${{ github.ref_name }}
-          prerelease: true
-          body: |
-            ## CC Switch ${{ github.ref_name }}
-
-            Claude Code 供应商切换工具
-
-            ### 下载
-
-            - **macOS**: `CC-Switch-${{ github.ref_name }}-macOS.zip`（解压即用）或 `CC-Switch-${{ github.ref_name }}-macOS.tar.gz`（Homebrew）
-            - **Windows**: `CC-Switch-${{ github.ref_name }}-Windows.msi`（安装版）或 `CC-Switch-${{ github.ref_name }}-Windows-Portable.zip`（绿色版）
-            - **Linux (x86_64)**: `CC-Switch-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-            - **Linux (ARM64)**: `CC-Switch-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
-
-            ---
-            提示：macOS 如遇"已损坏"提示，可在终端执行：`xattr -cr "/Applications/CC Switch.app"`
-          files: release-assets/*
+      - name: Ensure GitHub Release Exists
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          REPO="${GITHUB_REPOSITORY}"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release already exists: $TAG"
+          else
+            {
+              printf '## CC Switch %s\n\n' "$TAG"
+              printf 'Claude Code 供应商切换工具\n\n'
+              printf '### 下载\n\n'
+              printf -- '- **macOS**: `CC-Switch-%s-macOS.zip`（解压即用）或 `CC-Switch-%s-macOS.tar.gz`（Homebrew）\n' "$TAG" "$TAG"
+              printf -- '- **Windows**: `CC-Switch-%s-Windows.msi`（安装版）或 `CC-Switch-%s-Windows-Portable.zip`（绿色版）\n' "$TAG" "$TAG"
+              printf -- '- **Linux (x86_64)**: `CC-Switch-%s-Linux-x86_64.AppImage` / `.deb` / `.rpm`\n' "$TAG"
+              printf -- '- **Linux (ARM64)**: `CC-Switch-%s-Linux-arm64.AppImage` / `.deb` / `.rpm`\n\n' "$TAG"
+              printf '%s\n' '---'
+              printf '%s\n' '提示：macOS 如遇"已损坏"提示，可在终端执行：`xattr -cr "/Applications/CC Switch.app"`'
+            } > release-notes.md
+            gh release create "$TAG" \
+              --repo "$REPO" \
+              --title "CC Switch $TAG" \
+              --prerelease \
+              --notes-file release-notes.md \
+            || gh release view "$TAG" --repo "$REPO" >/dev/null
+          fi
+
+      - name: Upload Release Assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          REPO="${GITHUB_REPOSITORY}"
+          shopt -s nullglob
+          files=(release-assets/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No files found in release-assets/" >&2
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$REPO"
 
       - name: List generated bundles (debug)
         if: always()
