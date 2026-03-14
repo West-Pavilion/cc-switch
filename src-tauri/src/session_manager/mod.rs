@@ -59,6 +59,10 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
     sessions.extend(r4);
     sessions.extend(r5);
 
+    // Align session list timestamps with actual conversation data:
+    // use the maximum message timestamp as the authoritative last activity time.
+    enrich_last_active_from_messages(&mut sessions);
+
     sessions.sort_by(|a, b| {
         let a_ts = a.last_active_at.or(a.created_at).unwrap_or(0);
         let b_ts = b.last_active_at.or(b.created_at).unwrap_or(0);
@@ -66,6 +70,26 @@ pub fn scan_sessions() -> Vec<SessionMeta> {
     });
 
     sessions
+}
+
+fn enrich_last_active_from_messages(sessions: &mut [SessionMeta]) {
+    for session in sessions.iter_mut() {
+        let Some(source_path) = session.source_path.as_deref() else {
+            continue;
+        };
+
+        let Ok(messages) = load_messages(&session.provider_id, source_path) else {
+            continue;
+        };
+
+        if let Some(max_ts) = max_message_timestamp(&messages) {
+            session.last_active_at = Some(max_ts);
+        }
+    }
+}
+
+fn max_message_timestamp(messages: &[SessionMessage]) -> Option<i64> {
+    messages.iter().filter_map(|message| message.ts).max()
 }
 
 pub fn load_messages(provider_id: &str, source_path: &str) -> Result<Vec<SessionMessage>, String> {
@@ -164,5 +188,28 @@ mod tests {
             .expect_err("expected missing source path to fail");
 
         assert!(err.contains("session source not found"));
+    }
+
+    #[test]
+    fn picks_max_message_timestamp() {
+        let messages = vec![
+            SessionMessage {
+                role: "user".to_string(),
+                content: "hello".to_string(),
+                ts: Some(100),
+            },
+            SessionMessage {
+                role: "assistant".to_string(),
+                content: "world".to_string(),
+                ts: None,
+            },
+            SessionMessage {
+                role: "assistant".to_string(),
+                content: "!".to_string(),
+                ts: Some(300),
+            },
+        ];
+
+        assert_eq!(max_message_timestamp(&messages), Some(300));
     }
 }
