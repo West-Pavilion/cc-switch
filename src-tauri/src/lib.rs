@@ -991,6 +991,8 @@ pub fn run() {
             commands::get_session_messages,
             commands::delete_session,
             commands::launch_session_terminal,
+            commands::save_session_export_dialog,
+            commands::export_session_transcript_to_file,
             commands::get_tool_versions,
             // Provider terminal
             commands::open_provider_terminal,

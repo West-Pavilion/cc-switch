@@ -651,7 +651,12 @@
     "copyCommand": "复制命令",
     "copyMessage": "复制消息",
     "messageCopied": "已复制消息内容",
-    "conversationHistory": "对话记录"
+    "conversationHistory": "对话记录",
+    "export": "导出会话",
+    "exporting": "导出中...",
+    "exportTooltip": "导出当前会话记录",
+    "exportSuccess": "对话记录已导出",
+    "exportFailed": "导出会话失败: {{error}}"
   },
   "console": {
     "providerSwitchReceived": "收到供应商切换事件:",

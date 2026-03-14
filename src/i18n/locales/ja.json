@@ -651,7 +651,12 @@
     "copyCommand": "コマンドをコピー",
     "copyMessage": "メッセージをコピー",
     "messageCopied": "メッセージがコピーされました",
-    "conversationHistory": "会話履歴"
+    "conversationHistory": "会話履歴",
+    "export": "セッションをエクスポート",
+    "exporting": "エクスポート中...",
+    "exportTooltip": "現在のセッション記録をエクスポート",
+    "exportSuccess": "セッション記録をエクスポートしました",
+    "exportFailed": "セッションのエクスポートに失敗しました: {{error}}"
   },
   "console": {
     "providerSwitchReceived": "プロバイダー切り替えイベントを受信:",

@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 
 use crate::session_manager;
+use std::path::PathBuf;
+use tauri_plugin_dialog::DialogExt;
 
 #[tauri::command]
 pub async fn list_sessions() -> Result<Vec<session_manager::SessionMeta>, String> {
@@ -73,4 +75,45 @@ pub async fn delete_session(
     })
     .await
     .map_err(|e| format!("Failed to delete session: {e}"))?
+}
+
+#[tauri::command]
+pub async fn save_session_export_dialog<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    #[allow(non_snake_case)] defaultName: String,
+) -> Result<Option<String>, String> {
+    let dialog = app.dialog();
+    let result = dialog
+        .file()
+        .add_filter("Markdown", &["md"])
+        .add_filter("Text", &["txt"])
+        .add_filter("JSON", &["json"])
+        .set_file_name(&defaultName)
+        .blocking_save_file();
+
+    Ok(result.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+pub async fn export_session_transcript_to_file(
+    #[allow(non_snake_case)] filePath: String,
+    content: String,
+) -> Result<bool, String> {
+    let target_path = PathBuf::from(&filePath);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(parent) = target_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to prepare export directory: {e}"))?;
+            }
+        }
+
+        std::fs::write(&target_path, content)
+            .map_err(|e| format!("Failed to export session transcript: {e}"))?;
+
+        Ok::<_, String>(true)
+    })
+    .await
+    .map_err(|e| format!("Failed to export session transcript: {e}"))?
 }

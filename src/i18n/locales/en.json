@@ -651,7 +651,12 @@
     "copyCommand": "Copy Command",
     "copyMessage": "Copy Message",
     "messageCopied": "Message copied",
-    "conversationHistory": "Conversation History"
+    "conversationHistory": "Conversation History",
+    "export": "Export Session",
+    "exporting": "Exporting...",
+    "exportTooltip": "Export current session transcript",
+    "exportSuccess": "Session transcript exported",
+    "exportFailed": "Failed to export session: {{error}}"
   },
   "console": {
     "providerSwitchReceived": "Received provider switch event:",

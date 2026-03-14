@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Search,
   Play,
+  Download,
   Trash2,
   MessageSquare,
   Clock,
@@ -19,7 +20,7 @@ import {
   useSessionsQuery,
 } from "@/lib/query";
 import { sessionsApi } from "@/lib/api";
-import type { SessionMeta } from "@/types";
+import type { SessionMessage, SessionMeta } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,81 @@ type ProviderFilter =
   | "openclaw"
   | "gemini";
 
+const DEFAULT_SESSION_EXPORT_EXTENSION = "md";
+
+const sanitizeExportFileName = (value: string) =>
+  value
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const formatExportStamp = (date: Date) =>
+  `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}_${String(date.getHours()).padStart(2, "0")}${String(date.getMinutes()).padStart(2, "0")}${String(date.getSeconds()).padStart(2, "0")}`;
+
+const createExportDefaultName = (session: SessionMeta, now: Date) => {
+  const title = sanitizeExportFileName(formatSessionTitle(session))
+    .replace(/\.+$/g, "")
+    .slice(0, 48);
+  const fallbackId = sanitizeExportFileName(session.sessionId).slice(0, 12);
+  const prefix = title || fallbackId || "session";
+  return `${prefix}-${formatExportStamp(now)}.${DEFAULT_SESSION_EXPORT_EXTENSION}`;
+};
+
+const buildSessionExportMarkdown = (
+  session: SessionMeta,
+  messages: SessionMessage[],
+  exportedAt: Date,
+) => {
+  const lines: string[] = [];
+  lines.push(`# ${formatSessionTitle(session)}`);
+  lines.push("");
+  lines.push(`- Provider: ${session.providerId}`);
+  lines.push(`- Session ID: ${session.sessionId}`);
+  if (session.projectDir) {
+    lines.push(`- Project Dir: ${session.projectDir}`);
+  }
+  if (session.createdAt) {
+    lines.push(`- Created At: ${new Date(session.createdAt).toISOString()}`);
+  }
+  const lastActive = session.lastActiveAt ?? session.createdAt;
+  if (lastActive) {
+    lines.push(`- Last Active At: ${new Date(lastActive).toISOString()}`);
+  }
+  lines.push(`- Exported At: ${exportedAt.toISOString()}`);
+  lines.push(`- Message Count: ${messages.length}`);
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  messages.forEach((message, index) => {
+    lines.push(`## ${index + 1}. ${message.role}`);
+    if (message.ts) {
+      lines.push(`- Time: ${new Date(message.ts).toISOString()}`);
+    }
+    lines.push("");
+    lines.push(message.content || "");
+    lines.push("");
+  });
+
+  return lines.join("\n");
+};
+
+const buildSessionExportJson = (
+  session: SessionMeta,
+  messages: SessionMessage[],
+  exportedAt: Date,
+) =>
+  JSON.stringify(
+    {
+      exportedAt: exportedAt.toISOString(),
+      session,
+      messageCount: messages.length,
+      messages,
+    },
+    null,
+    2,
+  );
+
 export function SessionManagerPage({ appId }: { appId: string }) {
   const { t } = useTranslation();
   const { data, isLoading, refetch: refetchSessions } = useSessionsQuery();
@@ -75,6 +151,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SessionMeta | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [search, setSearch] = useState("");
@@ -215,13 +292,58 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const tasks = [refetchSessions()];
+      const tasks: Array<Promise<unknown>> = [refetchSessions()];
       if (selectedSession?.providerId && selectedSession?.sourcePath) {
         tasks.push(refetchMessages());
       }
       await Promise.all(tasks);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (isExporting || !selectedSession) return;
+
+    const sessionToExport = selectedSession;
+    const messagesToExport = messages;
+    const exportedAt = new Date();
+
+    setIsExporting(true);
+    try {
+      const defaultName = createExportDefaultName(sessionToExport, exportedAt);
+      const destination = await sessionsApi.saveExportDialog(defaultName);
+      if (!destination) return;
+
+      const content = destination.toLowerCase().endsWith(".json")
+        ? buildSessionExportJson(sessionToExport, messagesToExport, exportedAt)
+        : buildSessionExportMarkdown(
+            sessionToExport,
+            messagesToExport,
+            exportedAt,
+          );
+
+      await sessionsApi.exportTranscript({
+        filePath: destination,
+        content,
+      });
+
+      toast.success(
+        `${t("sessionManager.exportSuccess", {
+          defaultValue: "对话记录已导出",
+        })}\n${destination}`,
+        { closeButton: true },
+      );
+    } catch (error) {
+      const detail = extractErrorMessage(error) || t("common.unknown");
+      toast.error(
+        t("sessionManager.exportFailed", {
+          defaultValue: "导出会话失败: {{error}}",
+          error: detail,
+        }),
+      );
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -582,6 +704,35 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           <TooltipContent>
                             {t("sessionManager.refreshSession", {
                               defaultValue: "刷新会话",
+                            })}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => void handleExport()}
+                              disabled={isExporting || isLoadingMessages}
+                            >
+                              <Download
+                                className={`size-3.5 ${isExporting ? "animate-pulse" : ""}`}
+                              />
+                              <span className="hidden sm:inline">
+                                {isExporting
+                                  ? t("sessionManager.exporting", {
+                                      defaultValue: "导出中...",
+                                    })
+                                  : t("sessionManager.export", {
+                                      defaultValue: "导出会话",
+                                    })}
+                              </span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("sessionManager.exportTooltip", {
+                              defaultValue: "导出当前会话记录",
                             })}
                           </TooltipContent>
                         </Tooltip>

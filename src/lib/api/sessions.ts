@@ -7,6 +7,11 @@ export interface DeleteSessionOptions {
   sourcePath: string;
 }
 
+export interface ExportSessionOptions {
+  filePath: string;
+  content: string;
+}
+
 export const sessionsApi = {
   async list(): Promise<SessionMeta[]> {
     return await invoke("list_sessions");
@@ -38,6 +43,18 @@ export const sessionsApi = {
       command,
       cwd,
       customConfig,
+    });
+  },
+
+  async saveExportDialog(defaultName: string): Promise<string | null> {
+    return await invoke("save_session_export_dialog", { defaultName });
+  },
+
+  async exportTranscript(options: ExportSessionOptions): Promise<boolean> {
+    const { filePath, content } = options;
+    return await invoke("export_session_transcript_to_file", {
+      filePath,
+      content,
     });
   },
 };
