@@ -63,7 +63,7 @@ type ProviderFilter =
 
 export function SessionManagerPage({ appId }: { appId: string }) {
   const { t } = useTranslation();
-  const { data, isLoading, refetch } = useSessionsQuery();
+  const { data, isLoading, refetch: refetchSessions } = useSessionsQuery();
   const sessions = data ?? [];
   const detailRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -116,7 +116,11 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     );
   }, [filteredSessions, selectedKey]);
 
-  const { data: messages = [], isLoading: isLoadingMessages } =
+  const {
+    data: messages = [],
+    isLoading: isLoadingMessages,
+    refetch: refetchMessages,
+  } =
     useSessionMessagesQuery(
       selectedSession?.providerId,
       selectedSession?.sourcePath,
@@ -204,6 +208,14 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       sessionId: deleteTarget.sessionId,
       sourcePath: deleteTarget.sourcePath,
     });
+  };
+
+  const handleRefresh = async () => {
+    const tasks = [refetchSessions()];
+    if (selectedSession?.providerId && selectedSession?.sourcePath) {
+      tasks.push(refetchMessages());
+    }
+    await Promise.all(tasks);
   };
 
   return (
@@ -376,7 +388,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             variant="ghost"
                             size="icon"
                             className="size-7"
-                            onClick={() => void refetch()}
+                            onClick={() => void handleRefresh()}
                           >
                             <RefreshCw className="size-3.5" />
                           </Button>
