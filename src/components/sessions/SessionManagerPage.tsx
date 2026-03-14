@@ -687,7 +687,8 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           <TooltipTrigger asChild>
                             <Button
                               size="sm"
-                              className="gap-1.5 bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                              variant="outline"
+                              className="gap-1.5"
                               onClick={() => void handleRefresh()}
                               disabled={isRefreshing}
                             >
@@ -711,8 +712,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                           <TooltipTrigger asChild>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="gap-1.5"
+                              className="gap-1.5 bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
                               onClick={() => void handleExport()}
                               disabled={isExporting || isLoadingMessages}
                             >
