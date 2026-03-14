@@ -74,6 +74,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   const [tocDialogOpen, setTocDialogOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SessionMeta | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [search, setSearch] = useState("");
@@ -211,11 +212,17 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   };
 
   const handleRefresh = async () => {
-    const tasks = [refetchSessions()];
-    if (selectedSession?.providerId && selectedSession?.sourcePath) {
-      tasks.push(refetchMessages());
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      const tasks = [refetchSessions()];
+      if (selectedSession?.providerId && selectedSession?.sourcePath) {
+        tasks.push(refetchMessages());
+      }
+      await Promise.all(tasks);
+    } finally {
+      setIsRefreshing(false);
     }
-    await Promise.all(tasks);
   };
 
   return (
@@ -388,9 +395,12 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             variant="ghost"
                             size="icon"
                             className="size-7"
+                            disabled={isRefreshing}
                             onClick={() => void handleRefresh()}
                           >
-                            <RefreshCw className="size-3.5" />
+                            <RefreshCw
+                              className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                            />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{t("common.refresh")}</TooltipContent>
@@ -551,6 +561,30 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             </TooltipContent>
                           </Tooltip>
                         )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              className="gap-1.5 bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                              onClick={() => void handleRefresh()}
+                              disabled={isRefreshing}
+                            >
+                              <RefreshCw
+                                className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                              />
+                              <span className="hidden sm:inline">
+                                {t("sessionManager.refreshSession", {
+                                  defaultValue: "刷新会话",
+                                })}
+                              </span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("sessionManager.refreshSession", {
+                              defaultValue: "刷新会话",
+                            })}
+                          </TooltipContent>
+                        </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
